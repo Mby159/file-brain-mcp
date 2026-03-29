@@ -1,0 +1,99 @@
+name: file-brain
+description: 本地文件系统智能管理 - 搜索、索引、问答功能。用于查找代码、文档内容，或回答关于本地项目的问题
+version: "1.0.0"
+
+trigger:
+  - "搜索.*文件"
+  - "查找.*代码"
+  - "项目.*用了什么"
+  - "这个.*在哪里"
+  - "索引.*项目"
+  - "搜索.*内容"
+  - "search"
+  - "index"
+  - "ask"
+  - "在.*找"
+
+tools:
+  search:
+    description: 搜索已索引的文件内容
+    parameters:
+      query:
+        type: string
+        description: 搜索关键词
+      top_k:
+        type: integer
+        description: 返回结果数量
+        default: 10
+    returns:
+      type: array
+      description: 搜索结果列表，包含文件路径、标题、匹配度、上下文
+
+  index_file:
+    description: 索引单个文件
+    parameters:
+      path:
+        type: string
+        description: 文件路径
+    returns:
+      type: object
+      description: 索引结果和统计信息
+
+  index_directory:
+    description: 索引目录下的所有文件
+    parameters:
+      path:
+        type: string
+        description: 目录路径
+      recursive:
+        type: boolean
+        description: 是否递归子目录
+        default: true
+      extensions:
+        type: array
+        items:
+          type: string
+        description: 要索引的文件扩展名，如 [".py", ".md", ".txt"]
+    returns:
+      type: object
+      description: 索引统计（成功/失败/跳过数量）
+
+  ask:
+    description: 基于索引内容回答问题
+    parameters:
+      question:
+        type: string
+        description: 要问的问题
+      top_k:
+        type: integer
+        description: 考虑的结果数量
+        default: 5
+    returns:
+      type: object
+      description: 回答和来源
+
+  list_indexed:
+    description: 列出所有已索引的文件
+    parameters: {}
+    returns:
+      type: array
+      description: 文件列表
+
+  get_stats:
+    description: 获取索引统计信息
+    parameters: {}
+    returns:
+      type: object
+      description: 统计信息（文件数、字符数、文件类型分布）
+
+usage: |
+  触发场景：
+  - 用户问关于本地代码/文档的问题
+  - 需要在项目中搜索特定内容
+  - 查找某个功能在哪个文件
+  - 了解项目结构或依赖
+
+  工作流程：
+  1. 如果是新目录，先用 index_directory 索引
+  2. 用 search 搜索关键词
+  3. 用 ask 获取基于内容的回答
