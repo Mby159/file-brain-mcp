@@ -642,28 +642,28 @@ def main():
         sys.exit(1)
 
     if cmd == "search":
-        query = " ".join(args[1:]) if len(args) > 1 else input("Query: ")
+        query = " ".join(args) if args else input("Query: ")
         print(json.dumps(engine.search(query), ensure_ascii=False, indent=2))
     elif cmd == "vector-search":
-        query = " ".join(args[1:]) if len(args) > 1 else input("Semantic query: ")
+        query = " ".join(args) if args else input("Semantic query: ")
         print(json.dumps(engine.vector_search(query), ensure_ascii=False, indent=2))
     elif cmd == "index":
-        if len(args) < 2:
+        if len(args) < 1:
             print("Usage: file_brain_mcp.py index <file_path>")
             sys.exit(1)
-        print(f"Indexed: {engine._index_single_file(Path(args[1]))}")
+        print(f"Indexed: {engine._index_single_file(Path(args[0]))}")
     elif cmd == "index-dir":
-        if len(args) < 2:
+        if len(args) < 1:
             print("Usage: file_brain_mcp.py index-dir <directory_path>")
             sys.exit(1)
-        print(json.dumps(engine.index_directory(Path(args[1])), indent=2))
+        print(json.dumps(engine.index_directory(Path(args[0])), indent=2))
     elif cmd == "reindex":
-        if len(args) < 2:
+        if len(args) < 1:
             print("Usage: file_brain_mcp.py reindex <directory_path>")
             sys.exit(1)
-        print(json.dumps(engine.reindex_modified(Path(args[1])), indent=2))
+        print(json.dumps(engine.reindex_modified(Path(args[0])), indent=2))
     elif cmd == "ask":
-        question = " ".join(args[1:]) if len(args) > 1 else input("Question: ")
+        question = " ".join(args) if args else input("Question: ")
         print(json.dumps(qa.ask(question), ensure_ascii=False, indent=2))
     elif cmd == "list":
         preview = "--preview" in args
