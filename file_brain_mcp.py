@@ -25,6 +25,16 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 import hashlib
 
+
+
+def safe_print(text):
+    """Print with encoding error handling for Windows"""
+    if isinstance(text, str):
+        text = text.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
+    try:
+        print(text)
+    except Exception:
+        pass
 try:
     import jieba
 
@@ -643,10 +653,10 @@ def main():
 
     if cmd == "search":
         query = " ".join(args) if args else input("Query: ")
-        print(json.dumps(engine.search(query), ensure_ascii=False, indent=2))
+        safe_print(json.dumps(engine.search(query), ensure_ascii=False, indent=2))
     elif cmd == "vector-search":
         query = " ".join(args) if args else input("Semantic query: ")
-        print(json.dumps(engine.vector_search(query), ensure_ascii=False, indent=2))
+        safe_print(json.dumps(engine.vector_search(query), ensure_ascii=False, indent=2))
     elif cmd == "index":
         if len(args) < 1:
             print("Usage: file_brain_mcp.py index <file_path>")
@@ -656,15 +666,15 @@ def main():
         if len(args) < 1:
             print("Usage: file_brain_mcp.py index-dir <directory_path>")
             sys.exit(1)
-        print(json.dumps(engine.index_directory(Path(args[0])), indent=2))
+        safe_print(json.dumps(engine.index_directory(Path(args[0])), indent=2))
     elif cmd == "reindex":
         if len(args) < 1:
             print("Usage: file_brain_mcp.py reindex <directory_path>")
             sys.exit(1)
-        print(json.dumps(engine.reindex_modified(Path(args[0])), indent=2))
+        safe_print(json.dumps(engine.reindex_modified(Path(args[0])), indent=2))
     elif cmd == "ask":
         question = " ".join(args) if args else input("Question: ")
-        print(json.dumps(qa.ask(question), ensure_ascii=False, indent=2))
+        safe_print(json.dumps(qa.ask(question), ensure_ascii=False, indent=2))
     elif cmd == "list":
         preview = "--preview" in args
         print(
@@ -673,7 +683,7 @@ def main():
             )
         )
     elif cmd == "stats":
-        print(json.dumps(engine.get_stats(), indent=2))
+        safe_print(json.dumps(engine.get_stats(), indent=2))
     elif cmd == "clear":
         engine.clear()
         print("Index cleared")
