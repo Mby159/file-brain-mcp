@@ -619,18 +619,27 @@ async def run_mcp_server():
 
 
 def main():
-    engine = SimpleSearchEngine()
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="File Brain MCP")
+    parser.add_argument("--index-dir", default=".file_brain_index", help="Index directory")
+    parser.add_argument("command", nargs="?", help="Command")
+    parser.add_argument("args", nargs="*", help="Arguments")
+    
+    parsed = parser.parse_args(sys.argv[1:])
+    index_dir = parsed.index_dir
+    cmd = parsed.command
+    args = parsed.args
+
+    engine = SimpleSearchEngine(index_dir=index_dir)
     qa = QaEngine(engine)
-    args = sys.argv[1:]
 
-    if not args:
+    if not cmd:
         print(__doc__)
-        print(
-            "\nAvailable commands: search, index, index-dir, reindex, vector-search, ask, list, stats, clear"
-        )
+        print("\nIndex directory:", index_dir)
+        print("Commands: search, index, index-dir, reindex, vector-search, ask, list, stats, clear")
+        print("Options: --index-dir <path>")
         sys.exit(1)
-
-    cmd = args[0]
 
     if cmd == "search":
         query = " ".join(args[1:]) if len(args) > 1 else input("Query: ")
