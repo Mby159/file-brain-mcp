@@ -1,0 +1,10 @@
+{
+  "custom_rules": [
+    {
+      "name": "order_id",
+      "pattern": "[A-Z]{3}\\d{3}",
+      "risk_level": "medium",
+      "replace_with": "[ORDER]"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "privacy-guard": {
+      "command": "python",
+      "args": ["D:/opencode1/privacy_guard.py", "--mcp"]
+    },
+    "file-brain": {
+      "command": "python", 
+      "args": ["D:/opencode1/file_brain_mcp.py", "--mcp"]
+    }
+  }
+}
