@@ -46,3 +46,7 @@ custom/
 demo/
 temp/
 tmp/
+
+# 记忆文件（仅供AI使用，不提交）
+context.md
+context.md.backup*
