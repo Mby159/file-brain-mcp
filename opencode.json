@@ -10,5 +10,34 @@
   },
   "server": {
     "port": 3000
+  },
+  "providers": {
+    "privacy-proxy": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Privacy Proxy",
+      "options": {
+        "baseURL": "http://localhost:8080/v1",
+        "apiKey": "proxy-secret-key"
+      },
+      "models": {
+        "gpt-4o": {
+          "name": "GPT-4o (Privacy Proxy)",
+          "limit": {
+            "context": 128000,
+            "output": 16384
+          }
+        },
+        "claude-sonnet-4.5": {
+          "name": "Claude Sonnet 4.5 (Privacy Proxy)",
+          "limit": {
+            "context": 200000,
+            "output": 4096
+          }
+        }
+      }
+    },
+    "openai": {
+      "disabled": false
+    }
   }
 }
