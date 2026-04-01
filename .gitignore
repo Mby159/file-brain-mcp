@@ -1,1 +1,48 @@
-__pycache__/\n*.pyc\n*.pyo\n*.egg-info/\n.file_brain_index/\n.demo_index/\n.env\n*.log\n
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# 索引文件
+.file_brain_index/
+.file_brain_index_demo/
+.file_brain_index_demo2/
+.test_idx/
+.tmp_mcp_idx/
+.tmp_mcp_idx2/
+indexes/
+
+# 缓存文件
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# 环境变量
+.env
+*.env
+
+# 日志
+*.log
+logs/
+
+# 测试数据
+test_data/
+demo_data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+Thumbs.db
+Desktop.ini
+
+# 项目特定
+custom/
+demo/
+temp/
+tmp/

@@ -95,78 +95,11 @@
 - 配置 OpenCode 使用隐私代理 (opencode.json)
 - 测试验证隐私处理功能正常工作
 
-**记忆文件更新**
-- 添加隐私代理服务器使用指南（6个部分）
-- 添加外部AI系统集成说明（5个部分）
-- 提供完整的安装、配置、启动、测试步骤
-- 包含外部系统集成方法（LangChain、AutoGen等）
-- 记忆文件从112行更新到171行
-- 创建备份文件：context.md.backup.20260401_163656
-
 **架构**
 用户 → OpenCode → 隐私代理服务器 (localhost:8080) → AI API
                         ↓
                    Privacy Guard
-                    (检测 & 脱敏)
-
-**隐私代理服务器使用指南**
-
-1. **安装步骤**
-   - 安装依赖: `pip install -r src/privacy-proxy/requirements.txt`
-   - 目录结构: `D:\opencode1\src\privacy-proxy\`
-
-2. **配置说明**
-   - 复制配置文件: `copy config.example.json config.json`
-   - 编辑配置: 设置 `openai_api_key` 和隐私选项
-   - 环境变量: 可设置 `OPENAI_API_KEY`
-
-3. **启动命令**
-   - 前台运行: `python src/privacy-proxy/main.py --config src/privacy-proxy/config.json`
-   - 后台运行: `Start-Process -FilePath python -ArgumentList "src/privacy-proxy/main.py", "--config", "src/privacy-proxy/config.json" -WindowStyle Hidden`
-
-4. **测试验证**
-   - 健康检查: `curl http://localhost:8080/health`
-   - 隐私处理测试: `curl -X POST http://localhost:8080/process -d '{"text":"手机号13812345678"}'`
-   - API测试: 配置OpenCode后自动处理所有输入
-
-5. **OpenCode配置**
-   - 在 `opencode.json` 中配置 `privacy-proxy` 提供商
-   - `baseURL`: `http://localhost:8080/v1`
-   - `apiKey`: `proxy-secret-key`
-
-6. **常见问题**
-   - 端口占用: 修改config.json中的端口号
-   - 连接错误: 检查OpenAI API密钥配置
-   - 性能优化: 调整timeout和max_retries参数
-
-**外部AI系统集成**
-
-1. **集成原理**
-   - 隐私代理服务器是OpenAI兼容的
-   - 任何支持OpenAI API格式的系统都可以集成
-
-2. **集成方式**
-   - 直接API调用: `http://localhost:8080/v1/chat/completions`
-   - 替换Base URL: 将 `https://api.openai.com/v1` 改为 `http://localhost:8080/v1`
-   - API密钥: 使用 `proxy-secret-key`
-
-3. **支持系统**
-   - LangChain: 修改OpenAI类的base_url
-   - AutoGen: 配置llm_config的base_url
-   - CrewAI: 设置OpenAI组件的端点
-   - 自定义应用: 任何使用OpenAI SDK的应用
-
-4. **配置示例**
-   ```python
-   import openai
-   openai.api_base = "http://localhost:8080/v1"
-   openai.api_key = "proxy-secret-key"
-   ```
-
-5. **多代理架构**
-   - 外部AI系统 → 隐私代理服务器 → 多个AI代理
-   - 统一隐私保护层
-   - 审计日志记录所有外部系统调用
+                   (检测 & 脱敏)
 
 ### 2026-03-31 URL 误报修复
 - SVG xmlns URL 被误判为敏感 URL

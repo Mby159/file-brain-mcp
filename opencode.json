@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "openai/gpt-4o",
+  "small_model": "openai/gpt-4o-mini",
+  "default_agent": "build",
+  "skills": {
+    "paths": [
+      "C:/Users/22324/.config/opencode/skills"
+    ]
+  },
+  "server": {
+    "port": 3000
+  }
+}

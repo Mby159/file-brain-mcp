@@ -24,17 +24,81 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 import hashlib
+import warnings
 
+# 抑制 UserWarning 警告，避免干扰 MCP stdio 通信
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
 def safe_print(text):
     """Print with encoding error handling for Windows"""
     if isinstance(text, str):
-        text = text.encode('utf-8', errors='replace').decode('utf-8', errors='replace')
+        text = text.encode("utf-8", errors="replace").decode("utf-8", errors="replace")
     try:
         print(text)
     except Exception:
         pass
+
+
+def format_output(data, fmt):
+    if fmt == "table" and isinstance(data, list) and len(data) > 0:
+        if "source" in data[0]:
+            headers = ["Title", "Type", "Score"]
+            rows = [
+                [r.get("title", ""), r.get("file_type", ""), r.get("score", 0)]
+                for r in data
+            ]
+            return format_table(headers, rows)
+        elif "source" in data[0] and len(data[0]) == 4:
+            headers = ["Source", "Title", "Type", "Size"]
+            rows = [
+                [
+                    r.get("source", "")[:40],
+                    r.get("title", ""),
+                    r.get("file_type", ""),
+                    r.get("size", 0),
+                ]
+                for r in data
+            ]
+            return format_table(headers, rows)
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+def format_table(headers, rows, max_width=100):
+    """Format data as ASCII table"""
+    if not rows:
+        return "No results"
+    col_widths = [len(h) for h in headers]
+    for row in rows:
+        for i, cell in enumerate(row):
+            col_widths[i] = min(max(col_widths[i], len(str(cell))), 35)
+    total = sum(col_widths) + len(col_widths) * 3 + 1
+    if total > max_width:
+        scale = max_width / total
+        col_widths = [max(10, int(w * scale)) for w in col_widths]
+
+    def fmt_cell(cell, width):
+        s = str(cell)[:width]
+        return s + " " * (width - len(s))
+
+    line = "+" + "+".join("-" * (w + 2) for w in col_widths) + "+"
+    result = [line]
+    result.append(
+        "|"
+        + "|".join(" " + fmt_cell(h, col_widths[i]) for i, h in enumerate(headers))
+        + "|"
+    )
+    result.append(line)
+    for row in rows:
+        result.append(
+            "|"
+            + "|".join(" " + fmt_cell(row[i], col_widths[i]) for i in range(len(row)))
+            + "|"
+        )
+    result.append(line)
+    return "\n".join(result)
+
+
 try:
     import jieba
 
@@ -70,7 +134,7 @@ class FileContent:
 
 
 class SimpleSearchEngine:
-    def __init__(self, index_dir: str = ".file_brain_index"):
+    def __init__(self, index_dir: str = "indexes"):
         self.index_dir = Path(index_dir)
         self.index_dir.mkdir(exist_ok=True)
         self.index_file = self.index_dir / "index.json"
@@ -189,7 +253,13 @@ class SimpleSearchEngine:
                 line = line.strip()
                 if line and not line.startswith("#"):
                     patterns.add(line)
-        default_ignore = {".git", "__pycache__", "node_modules", ".pytest_cache", ".mypy_cache"}
+        default_ignore = {
+            ".git",
+            "__pycache__",
+            "node_modules",
+            ".pytest_cache",
+            ".mypy_cache",
+        }
         patterns.update(default_ignore)
         return patterns
 
@@ -197,13 +267,21 @@ class SimpleSearchEngine:
         rel_path = path.name
         for pattern in patterns:
             if pattern.startswith("**/"):
-                if fnmatch.fnmatch(rel_path, pattern[3:]) or fnmatch.fnmatch(str(path), pattern):
+                if fnmatch.fnmatch(rel_path, pattern[3:]) or fnmatch.fnmatch(
+                    str(path), pattern
+                ):
                     return True
             elif "/" in pattern or (is_recursive and "**" in pattern):
-                if fnmatch.fnmatch(str(path), pattern) or fnmatch.fnmatch(str(path).replace("\\", "/"), pattern):
+                if fnmatch.fnmatch(str(path), pattern) or fnmatch.fnmatch(
+                    str(path).replace("\\", "/"), pattern
+                ):
                     return True
             else:
-                if fnmatch.fnmatch(rel_path, pattern) or fnmatch.fnmatch(rel_path, f"*/{pattern}") or fnmatch.fnmatch(rel_path, f"**/{pattern}"):
+                if (
+                    fnmatch.fnmatch(rel_path, pattern)
+                    or fnmatch.fnmatch(rel_path, f"*/{pattern}")
+                    or fnmatch.fnmatch(rel_path, f"**/{pattern}")
+                ):
                     return True
         return False
 
@@ -214,6 +292,7 @@ class SimpleSearchEngine:
         extensions: List[str] = None,
         incremental: bool = True,
         use_gitignore: bool = True,
+        exclude_patterns: List[str] = None,
     ) -> Dict[str, int]:
         stats = {"success": 0, "failed": 0, "skipped": 0, "updated": 0}
 
@@ -233,6 +312,8 @@ class SimpleSearchEngine:
             ]
 
         ignore_patterns = self._load_gitignore(directory) if use_gitignore else set()
+        if exclude_patterns:
+            ignore_patterns.update(exclude_patterns)
         pattern = "**/*" if recursive else "*"
 
         for file_path in directory.glob(pattern):
@@ -264,8 +345,12 @@ class SimpleSearchEngine:
 
         return stats
 
-    def reindex_modified(self, directory: Path) -> Dict[str, int]:
-        return self.index_directory(directory, incremental=True)
+    def reindex_modified(
+        self, directory: Path, exclude_patterns: List[str] = None
+    ) -> Dict[str, int]:
+        return self.index_directory(
+            directory, incremental=True, exclude_patterns=exclude_patterns
+        )
 
     def search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
         query_lower = query.lower()
@@ -503,7 +588,7 @@ async def run_mcp_server():
                         "extensions": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "File extensions to index (e.g., [\".py\", \".md\"])",
+                            "description": 'File extensions to index (e.g., [".py", ".md"])',
                         },
                     },
                     "required": ["path"],
@@ -630,33 +715,52 @@ async def run_mcp_server():
 
 def main():
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="File Brain MCP")
-    parser.add_argument("--index-dir", default=".file_brain_index", help="Index directory")
+    parser.add_argument("--index-dir", default="indexes", help="Index directory")
+    parser.add_argument(
+        "--format",
+        choices=["json", "table", "list"],
+        default="json",
+        help="Output format",
+    )
+    parser.add_argument(
+        "--exclude", action="append", default=[], help="Exclude patterns (can repeat)"
+    )
+    parser.add_argument("--mcp", action="store_true", help="Run as MCP server")
     parser.add_argument("command", nargs="?", help="Command")
     parser.add_argument("args", nargs="*", help="Arguments")
-    
+
     parsed = parser.parse_args(sys.argv[1:])
     index_dir = parsed.index_dir
+    output_format = parsed.format
+    exclude_patterns = parsed.exclude
     cmd = parsed.command
     args = parsed.args
 
     engine = SimpleSearchEngine(index_dir=index_dir)
     qa = QaEngine(engine)
 
+    # 如果 --mcp 参数存在，启动 MCP 服务器
+    if parsed.mcp:
+        asyncio.run(run_mcp_server())
+        return
+
     if not cmd:
         print(__doc__)
         print("\nIndex directory:", index_dir)
-        print("Commands: search, index, index-dir, reindex, vector-search, ask, list, stats, clear")
-        print("Options: --index-dir <path>")
+        print(
+            "Commands: search, index, index-dir, reindex, vector-search, ask, list, stats, clear"
+        )
+        print("Options: --index-dir <path>, --mcp")
         sys.exit(1)
 
     if cmd == "search":
         query = " ".join(args) if args else input("Query: ")
-        safe_print(json.dumps(engine.search(query), ensure_ascii=False, indent=2))
+        safe_print(format_output(engine.search(query), output_format))
     elif cmd == "vector-search":
         query = " ".join(args) if args else input("Semantic query: ")
-        safe_print(json.dumps(engine.vector_search(query), ensure_ascii=False, indent=2))
+        safe_print(format_output(engine.vector_search(query), output_format))
     elif cmd == "index":
         if len(args) < 1:
             print("Usage: file_brain_mcp.py index <file_path>")
@@ -666,29 +770,37 @@ def main():
         if len(args) < 1:
             print("Usage: file_brain_mcp.py index-dir <directory_path>")
             sys.exit(1)
-        safe_print(json.dumps(engine.index_directory(Path(args[0])), indent=2))
+        exclude = exclude_patterns if exclude_patterns else None
+        safe_print(
+            json.dumps(
+                engine.index_directory(Path(args[0]), exclude_patterns=exclude),
+                indent=2,
+            )
+        )
     elif cmd == "reindex":
         if len(args) < 1:
             print("Usage: file_brain_mcp.py reindex <directory_path>")
             sys.exit(1)
-        safe_print(json.dumps(engine.reindex_modified(Path(args[0])), indent=2))
+        exclude = exclude_patterns if exclude_patterns else None
+        safe_print(
+            json.dumps(
+                engine.reindex_modified(Path(args[0]), exclude_patterns=exclude),
+                indent=2,
+            )
+        )
     elif cmd == "ask":
         question = " ".join(args) if args else input("Question: ")
-        safe_print(json.dumps(qa.ask(question), ensure_ascii=False, indent=2))
+        safe_print(format_output(qa.ask(question), output_format))
     elif cmd == "list":
         preview = "--preview" in args
-        print(
-            json.dumps(
-                engine.list_sources(with_preview=preview), ensure_ascii=False, indent=2
-            )
+        safe_print(
+            format_output(engine.list_sources(with_preview=preview), output_format)
         )
     elif cmd == "stats":
         safe_print(json.dumps(engine.get_stats(), indent=2))
     elif cmd == "clear":
         engine.clear()
         print("Index cleared")
-    elif cmd == "--mcp":
-        asyncio.run(run_mcp_server())
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)
