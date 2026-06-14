@@ -19,6 +19,7 @@ import json
 import os
 import sys
 import asyncio
+import re
 import fnmatch
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -166,9 +167,18 @@ class SimpleSearchEngine:
             json.dump(self._vectors, f, ensure_ascii=False)
 
     def _tokenize(self, text: str) -> List[str]:
-        if self.use_chinese:
-            return list(jieba.cut(text))
-        return text.lower().split()
+        tokens: List[str] = []
+        lowered = text.lower()
+        for token in re.findall(r"[a-z0-9_\-]+", lowered):
+            tokens.append(token)
+            tokens.extend(part for part in re.split(r"[-_]", token) if part)
+        cjk_chunks = re.findall(r"[\u4e00-\u9fff]{2,}", text)
+        for chunk in cjk_chunks:
+            if self.use_chinese:
+                tokens.extend(t.strip() for t in jieba.cut(chunk) if t.strip())
+            tokens.extend(chunk[i : i + 2] for i in range(max(len(chunk) - 1, 0)))
+            tokens.extend(chunk[i : i + 3] for i in range(max(len(chunk) - 2, 0)))
+        return tokens
 
     def _compute_vector(self, text: str) -> Optional[List[float]]:
         if not self.use_vector:
@@ -259,6 +269,17 @@ class SimpleSearchEngine:
             "node_modules",
             ".pytest_cache",
             ".mypy_cache",
+            ".ruff_cache",
+            ".venv",
+            "venv",
+            "dist",
+            "build",
+            ".env",
+            "*.env",
+            "*.key",
+            "*.pem",
+            "secrets",
+            "secrets/**",
         }
         patterns.update(default_ignore)
         return patterns
@@ -354,42 +375,46 @@ class SimpleSearchEngine:
 
     def search(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
         query_lower = query.lower()
-        query_tokens = self._tokenize(query)
+        query_tokens = set(self._tokenize(query))
         results = []
 
         for source, data in self.index.items():
             content = data["content"]
             content_lower = content.lower()
+            content_tokens = set(self._tokenize(content))
 
-            if query_lower in content_lower:
-                lines = content.split("\n")
+            exact_matches = content_lower.count(query_lower) if query_lower else 0
+            token_matches = len(query_tokens & content_tokens) if query_tokens else 0
+            if exact_matches <= 0 and token_matches <= 0:
+                continue
+
+            lines = content.split("\n")
+            matches = [i for i, line in enumerate(lines) if query_lower in line.lower()]
+            if not matches and query_tokens:
                 matches = [
-                    i for i, line in enumerate(lines) if query_lower in line.lower()
+                    i
+                    for i, line in enumerate(lines)
+                    if query_tokens & set(self._tokenize(line))
                 ]
-                context = ""
-                if matches:
-                    idx = matches[0]
-                    start = max(0, idx - 2)
-                    end = min(len(lines), idx + 3)
-                    context = "\n".join(lines[start:end])
+            context = ""
+            if matches:
+                idx = matches[0]
+                start = max(0, idx - 2)
+                end = min(len(lines), idx + 3)
+                context = "\n".join(lines[start:end])
 
-                score = content_lower.count(query_lower)
-
-                if self.use_chinese and query_tokens:
-                    content_tokens = set(self._tokenize(content))
-                    token_matches = len(set(query_tokens) & content_tokens)
-                    score += token_matches * 0.5
-
-                results.append(
-                    {
-                        "source": source,
-                        "title": data["title"],
-                        "file_type": data["file_type"],
-                        "score": round(score, 2),
-                        "context": context[:500],
-                        "preview": data["content"][:200],
-                    }
-                )
+            phrase_hits = sum(1 for token in query_tokens if token and token in content_lower)
+            score = exact_matches * 2 + token_matches * 0.5 + phrase_hits * 0.25
+            results.append(
+                {
+                    "source": source,
+                    "title": data["title"],
+                    "file_type": data["file_type"],
+                    "score": round(score, 2),
+                    "context": context[:500],
+                    "preview": data["content"][:200],
+                }
+            )
 
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:top_k]
@@ -510,7 +535,7 @@ class QaEngine:
         }
 
 
-async def run_mcp_server():
+async def run_mcp_server(index_dir: str = "indexes"):
     if not HAS_MCP:
         print(
             "Error: MCP dependencies not installed. Run: pip install mcp",
@@ -519,7 +544,7 @@ async def run_mcp_server():
         sys.exit(1)
 
     server = Server("file-brain")
-    engine = SimpleSearchEngine()
+    engine = SimpleSearchEngine(index_dir=index_dir)
     qa = QaEngine(engine)
 
     @server.list_tools()
@@ -713,6 +738,11 @@ async def run_mcp_server():
         )
 
 
+def normalize_argv(argv: List[str]) -> List[str]:
+    """Accept launchers that pass `-- --mcp` before this script parses args."""
+    return [arg for arg in argv if arg != "--"]
+
+
 def main():
     import argparse
 
@@ -731,7 +761,7 @@ def main():
     parser.add_argument("command", nargs="?", help="Command")
     parser.add_argument("args", nargs="*", help="Arguments")
 
-    parsed = parser.parse_args(sys.argv[1:])
+    parsed = parser.parse_args(normalize_argv(sys.argv[1:]))
     index_dir = parsed.index_dir
     output_format = parsed.format
     exclude_patterns = parsed.exclude
@@ -743,7 +773,7 @@ def main():
 
     # 如果 --mcp 参数存在，启动 MCP 服务器
     if parsed.mcp:
-        asyncio.run(run_mcp_server())
+        asyncio.run(run_mcp_server(index_dir=index_dir))
         return
 
     if not cmd:
